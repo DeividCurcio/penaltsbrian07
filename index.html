@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penalty Kick Adventure - Happy Birthday Brian!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        h1 {
+            color: #008000; /* Green for soccer field */
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        canvas {
+            background-color: #228B22; /* Green field */
+            border: 2px solid #008000;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            width: 100%;
+            height: auto;
+        }
+
+        .controls {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #555;
+        }
+
+        button.start {
+            background-color: #008000;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1.2em;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        button.start:hover {
+            background-color: #006400;
+        }
+
+        #score {
+            font-size: 1.5em;
+            margin-top: 10px;
+            color: #008000;
+        }
+
+        .kick-controls {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 400px;
+            margin-top: 10px;
+        }
+
+        .kick-button {
+            background-color: #008000;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.5em;
+            border-radius: 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .kick-button:active {
+            background-color: #006400;
+        }
+
+        .fireworks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .firework {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            animation: explode 1s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Penalty Kick Adventure</h1>
+    <p>Happy Birthday, Brian! You're the star player with jersey #7. Choose a direction to kick the penalty and score goals! Use the buttons to kick left, middle, or right.</p>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div class="kick-controls" id="kickControls" style="display: none;">
+        <button class="kick-button" id="leftKick">Left</button>
+        <button class="kick-button" id="middleKick">Middle</button>
+        <button class="kick-button" id="rightKick">Right</button>
+    </div>
+    <div id="score">Score: 0</div>
+    <button class="start" id="startButton">Start Kicking!</button>
+    <div class="fireworks" id="fireworks"></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const scoreElement = document.getElementById('score');
+        const fireworksContainer = document.getElementById('fireworks');
+        const kickControls = document.getElementById('kickControls');
+        const leftKick = document.getElementById('leftKick');
+        const middleKick = document.getElementById('middleKick');
+        const rightKick = document.getElementById('rightKick');
+
+        const kickSound = new Audio('https://gfxsounds.com/wp-content/uploads/2021/03/Soccer-ball-being-solidly-kicked-grass.mp3');
+        const goalSound = new Audio('https://www.orangefreesounds.com/wp-content/uploads/2015/11/Crowd-cheering.mp3');
+        const missSound = new Audio('https://www.orangefreesounds.com/wp-content/uploads/2016/04/Crowd-booing-sound-effect.mp3');
+
+        let gameRunning = false;
+        let score = 0;
+        let ballX = canvas.width / 2;
+        let ballY = canvas.height - 100;
+        let ballSpeed = 0;
+        let kickDirection = '';
+        let goalieDirection = '';
+        let animationFrame = 0;
+        let gameState = 'ready'; // 'ready', 'kicking', 'result'
+
+        // Adjust canvas for responsiveness
+        function resizeCanvas() {
+            const maxWidth = 400;
+            const aspectRatio = 400 / 600;
+            let newWidth = window.innerWidth * 0.9;
+            if (newWidth > maxWidth) newWidth = maxWidth;
+            canvas.style.width = `${newWidth}px`;
+            canvas.style.height = `${newWidth / aspectRatio}px`;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawGoal() {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(100, 50, 200, 5); // Crossbar
+            ctx.fillRect(100, 50, 5, 100); // Left post
+            ctx.fillRect(295, 50, 5, 100); // Right post
+        }
+
+        function drawGoalie(x) {
+            ctx.fillStyle = '#ff0000'; // Red jersey
+            ctx.fillRect(x - 15, 100, 30, 50); // Body
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x - 20, 100, 10, 10); // Arm left
+            ctx.fillRect(x + 10, 100, 10, 10); // Arm right
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(x, 90, 10, 0, Math.PI * 2); // Head
+            ctx.fill();
+        }
+
+        function drawPlayer() {
+            // Back view
+            ctx.fillStyle = '#0000ff'; // Blue jersey
+            ctx.fillRect(canvas.width / 2 - 15, canvas.height - 150, 30, 50); // Body
+            ctx.fillStyle = '#000';
+            ctx.fillRect(canvas.width / 2 - 20, canvas.height - 150, 10, 10); // Arm left
+            ctx.fillRect(canvas.width / 2 + 10, canvas.height - 150, 10, 10); // Arm right
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height - 160, 10, 0, Math.PI * 2); // Head
+            ctx.fill();
+
+            // Jersey name and number
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 8px Arial';
+            ctx.fillText('Brian', canvas.width / 2 - 12, canvas.height - 120);
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText('7', canvas.width / 2 - 5, canvas.height - 105);
+        }
+
+        function drawBall(x, y) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGoal();
+            drawPlayer();
+            drawBall(ballX, ballY);
+
+            if (gameState === 'ready') {
+                drawGoalie(canvas.width / 2);
+            } else if (gameState === 'kicking') {
+                animationFrame++;
+                ballY -= 10; // Ball moving up
+                if (ballY <= 150) {
+                    gameState = 'result';
+                    if (kickDirection === goalieDirection) {
+                        missSound.play();
+                        alert('Missed! Goalie saved it.');
+                    } else {
+                        score++;
+                        goalSound.play();
+                        createFireworks();
+                        alert('GOAL! Great kick, Brian!');
+                    }
+                    resetKick();
+                }
+            } else if (gameState === 'result') {
+                // Show goalie dive
+                let goalieX = canvas.width / 2;
+                if (goalieDirection === 'left') goalieX -= 50;
+                if (goalieDirection === 'right') goalieX += 50;
+                drawGoalie(goalieX);
+            }
+
+            scoreElement.textContent = `Score: ${score}`;
+
+            if (gameRunning) requestAnimationFrame(update);
+        }
+
+        function startGame() {
+            gameRunning = true;
+            startButton.style.display = 'none';
+            kickControls.style.display = 'flex';
+            resetKick();
+            update();
+        }
+
+        function resetKick() {
+            ballX = canvas.width / 2;
+            ballY = canvas.height - 100;
+            kickDirection = '';
+            goalieDirection = ['left', 'middle', 'right'][Math.floor(Math.random() * 3)];
+            gameState = 'ready';
+        }
+
+        function kick(dir) {
+            if (gameState !== 'ready') return;
+            kickDirection = dir;
+            kickSound.play();
+            gameState = 'kicking';
+            if (dir === 'left') ballX -= 50;
+            if (dir === 'right') ballX += 50;
+        }
+
+        function createFireworks() {
+            for (let i = 0; i < 10; i++) {
+                const firework = document.createElement('div');
+                firework.classList.add('firework');
+                firework.style.left = `${Math.random() * 100}%`;
+                firework.style.top = `${Math.random() * 100}%`;
+                firework.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                fireworksContainer.appendChild(firework);
+                setTimeout(() => {
+                    fireworksContainer.removeChild(firework);
+                }, 1000);
+            }
+        }
+
+        startButton.addEventListener('click', startGame);
+        leftKick.addEventListener('click', () => kick('left'));
+        middleKick.addEventListener('click', () => kick('middle'));
+        rightKick.addEventListener('click', () => kick('right'));
+
+        // For touch
+        leftKick.addEventListener('touchstart', (e) => { e.preventDefault(); kick('left'); });
+        middleKick.addEventListener('touchstart', (e) => { e.preventDefault(); kick('middle'); });
+        rightKick.addEventListener('touchstart', (e) => { e.preventDefault(); kick('right'); });
+    </script>
+</body>
+</html>
